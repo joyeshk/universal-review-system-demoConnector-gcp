@@ -1,0 +1,38 @@
+steps:
+  #Step 1. Build project
+  - id: Build project
+    name: maven:3.8.7-openjdk-18-slim
+    entrypoint: mvn
+    args: ['clean','install', '-DskipTests=true']
+
+  #Step 2. Test project
+  - id: Test project
+    name: maven:3.8.7-openjdk-18-slim
+    entrypoint: mvn
+    args: ['test']
+
+  #Step 3. Build docker image
+  - id: Build docker image
+    name: 'gcr.io/cloud-builders/docker:24.0.9'
+    args: [ 'build', '-t', 'us-central1-docker.pkg.dev/skilled-flight-435221-g8/universal-reviews-user-democonnector/urev-democonnector-ms-production-ar:$SHORT_SHA', '.' ]
+
+  #Step 4. Push docker image
+  - id: Push docker image
+    name: 'gcr.io/cloud-builders/docker:24.0.9'
+    args: [ 'push', 'us-central1-docker.pkg.dev/skilled-flight-435221-g8/universal-reviews-user-democonnector/urev-democonnector-ms-production-ar:$SHORT_SHA' ]
+
+  #Step 5. Update Image Tag in the k8s deployment yaml
+  - id: Update Image Tag
+    name: ubuntu
+    args: [ 'bash','-c','sed -i "s|INIT_IMAGE_NAME|us-central1-docker.pkg.dev/skilled-flight-435221-g8/universal-reviews-user-democonnector/urev-democonnector-ms-production-ar:$SHORT_SHA|" k8s/deployment.yaml' ]
+
+  #Step 7. Updating Deployment
+  - id: Updating Deployment
+    name: gcr.io/cloud-builders/kubectl
+    args: ['apply','-f','k8s/deployment.yaml']
+    env:
+      - CLOUDSDK_COMPUTE_ZONE=us-central1
+      - CLOUDSDK_CONTAINER_CLUSTER=universal-reviews-cluster
+
+options:
+  logging: CLOUD_LOGGING_ONLY
